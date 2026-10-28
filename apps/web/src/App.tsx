@@ -26,6 +26,7 @@ import {
   wear,
 } from './cast';
 import { download } from './draw';
+import { latest } from './latest';
 import { Animation, Avatar } from './Preview';
 
 const start = startingSeed();
@@ -44,6 +45,9 @@ function codeOf(typed: TypedSeed, background: AvatarBackground): string | null {
 /** Whether `typed` stands for the character whose code is `code` (so the box can keep it). */
 const makes = (typed: TypedSeed, code: string, background: AvatarBackground): boolean =>
   codeOf(typed, background) === code;
+
+/** How long typed text waits for the next keystroke before it makes its character. */
+const TYPING_DELAY = 150;
 
 const PLACEHOLDERS: Record<SeedKind, string> = {
   text: 'Type anything: the same text, the same character',
@@ -97,8 +101,32 @@ export function App() {
       return null;
     }
   }, [profile, avatarBackground]);
-  // the seed code the box would make, shown as it is typed
-  const preview = kind === 'text' ? codeOf({ kind, value: typed }, avatarBackground) : null;
+  // text makes its character as it is typed (the latest text only: an older one never lands
+  // over it); a code waits for Make
+  const typing = useMemo(
+    () =>
+      latest(
+        (value: string) => {
+          try {
+            return readSeed({ kind: 'text', value }).profile;
+          } catch {
+            return null;
+          }
+        },
+        (made) => {
+          if (!made) return;
+          setError(null);
+          wear(made);
+        },
+        TYPING_DELAY,
+      ),
+    [],
+  );
+  useEffect(() => () => typing.cancel(), [typing]);
+  useEffect(() => {
+    if (kind !== 'text' || !typed || (look && makes({ kind, value: typed }, look.seed, avatarBackground))) typing.cancel();
+    else typing.schedule(typed);
+  }, [kind, typed]);
   const customItems = profile
     ? Object.values(profile).filter((v) => typeof v === 'string' && v.startsWith('custom_')).length
     : 0;
@@ -143,7 +171,8 @@ export function App() {
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
-    apply({ kind, value: typed });
+    if (kind === 'code') apply({ kind, value: typed });
+    else if (typed) typing.flush(typed);
   }
 
   function switchKind(next: SeedKind) {
@@ -193,18 +222,15 @@ export function App() {
             placeholder={PLACEHOLDERS[kind]}
             className="flex-1 min-w-[240px] px-8 py-4 bg-bg border-2 border-border text-sm text-text"
           />
-          <button type="submit" className="px-12 py-4 border-2 border-border shadow-pixel cursor-pointer text-sm bg-accent hover:bg-accent-bright">
-            Make
-          </button>
+          {kind === 'code' && (
+            <button type="submit" className="px-12 py-4 border-2 border-border shadow-pixel cursor-pointer text-sm bg-accent hover:bg-accent-bright">
+              Make
+            </button>
+          )}
           <Button onClick={() => apply({ kind: 'code', value: randomSeed({ background: avatarBackground }) })} title="A new random character">
             Random
           </Button>
         </form>
-        {preview && preview !== look?.seed && (
-          <p className="m-0 text-xs text-text-muted break-all">
-            Makes <code>{preview}</code> (press Make)
-          </p>
-        )}
         {error && <p className="m-0 text-sm text-danger" role="alert">{error}</p>}
 
         {look && (
