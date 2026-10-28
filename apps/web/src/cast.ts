@@ -3,7 +3,7 @@
  * page reads the selected character back out of it, or puts a seed's character into it.
  */
 
-import { type CharacterProfile, profileFromSeed, randomSeed } from 'pixatar';
+import { type AvatarBackground, type CharacterProfile, decodeSeed, isSeedCode, profileFromText, randomSeed } from 'pixatar';
 
 import { parseCharacterProfiles } from '../../../vendor/pixel-agents/core/src/characterProfiles.js';
 import { castStore } from '../../../vendor/pixel-agents/webview-ui/src/characters/castStore.js';
@@ -21,29 +21,57 @@ transport.setSendHandler((message) => {
 
 const FIELDS_KEPT = new Set(['id', 'name']);
 
-/** The seed in the page's address (#<seed>), if any. */
-export function seedFromLocation(): string | null {
+/** The two kinds of seed: free text (hashed into a character) and seed codes (px.…). */
+export type SeedKind = 'text' | 'code';
+
+export interface TypedSeed {
+  kind: SeedKind;
+  value: string;
+}
+
+/** What #t.<text> starts with: a free-text seed in the address (any text, px. included). */
+export const TEXT_HASH_PREFIX = 't.';
+
+/** The address (#<hash>) of a seed: #px.<code> for a code, #t.<text> for text. */
+export const hashOf = ({ kind, value }: TypedSeed): string =>
+  kind === 'code' ? `#${value}` : `#${TEXT_HASH_PREFIX}${encodeURIComponent(value)}`;
+
+/**
+ * The seed in the page's address, if any: #px.<code> is a seed code, #t.<text> free text,
+ * and anything else (the address before #t. existed) free text too.
+ */
+export function seedFromLocation(): TypedSeed | null {
   const hash = window.location.hash.slice(1);
   if (!hash) return null;
   try {
-    return decodeURIComponent(hash);
+    const value = decodeURIComponent(hash);
+    if (isSeedCode(value)) return { kind: 'code', value };
+    if (hash.startsWith(TEXT_HASH_PREFIX)) return { kind: 'text', value: decodeURIComponent(hash.slice(TEXT_HASH_PREFIX.length)) };
+    return { kind: 'text', value };
   } catch {
     return null;
   }
 }
 
+/** What a typed seed says: the character, and what its avatar sits on. Throws a PixatarError. */
+export function readSeed({ kind, value }: TypedSeed): { profile: CharacterProfile; background: AvatarBackground | null } {
+  // text says nothing about the background: the page's toggle stays as it is
+  return kind === 'code' ? decodeSeed(value) : { profile: profileFromText(value), background: null };
+}
+
 /** The seed the page starts on: the address's, else a new random one. */
-export function startingSeed(): { seed: string; profile: CharacterProfile } {
+export function startingSeed(): TypedSeed & { profile: CharacterProfile; background: AvatarBackground } {
   const seed = seedFromLocation();
   if (seed) {
     try {
-      return { seed, profile: profileFromSeed(seed) };
+      const read = readSeed(seed);
+      return { ...seed, profile: read.profile, background: read.background ?? 'color' };
     } catch {
       // not a seed we can read: start on a random one
     }
   }
-  const random = randomSeed();
-  return { seed: random, profile: profileFromSeed(random) };
+  const value = randomSeed();
+  return { kind: 'code', value, ...decodeSeed(value) };
 }
 
 /** Start the cast on one character. */

@@ -1,7 +1,8 @@
 /**
  * pixatar: deterministic Pixel Agents characters. A seed (any text, or a seed code) makes a
  * character profile; the profile is drawn by Pixel Agents' own renderer as a sprite sheet
- * and as an avatar on a background colour derived from the seed.
+ * (always transparent) and as an avatar on a background colour derived from the seed, or on
+ * nothing when the seed code says so.
  */
 
 import { backgroundColor } from './background.js';
@@ -17,7 +18,7 @@ import {
   renderSprites,
   type SheetOptions,
 } from './render.js';
-import { profileFromSeed, seedFromProfile } from './seed.js';
+import { type AvatarBackground, decodeSeed, type SeedOptions, seedFromProfile } from './seed.js';
 import type { CharacterDirectionSprites, CharacterProfile } from './vendor.js';
 
 export { backgroundColor } from './background.js';
@@ -41,6 +42,9 @@ export {
   type SheetOptions,
 } from './render.js';
 export {
+  type AvatarBackground,
+  decodeSeed,
+  decodeSeedCode,
   isSeedCode,
   normalizeSeed,
   profileFromCode,
@@ -48,7 +52,10 @@ export {
   profileFromText,
   randomSeed,
   SEED_PREFIX,
+  type SeedContents,
   seedFromProfile,
+  seedFromText,
+  type SeedOptions,
 } from './seed.js';
 export {
   CHARACTER_PROFILE_VERSION,
@@ -65,12 +72,14 @@ export { getWardrobe } from './wardrobe.js';
 
 /** A character, everything about it derived from its seed. */
 export interface Pixatar {
-  /** Its seed code: give it back to pixatar() for this exact character. */
+  /** Its seed code: give it back to pixatar() for this exact character and avatar. */
   seed: string;
   /** Its Pixel Agents character profile (what the Characters view's "Load config" reads). */
   profile: CharacterProfile;
-  /** Its avatar's background, #rrggbb. */
+  /** Its background colour, #rrggbb (also when the avatar is transparent). */
   background: string;
+  /** What its avatar is drawn on, as its seed code says. The sprite sheet is always transparent. */
+  avatarBackground: AvatarBackground;
   sheet(options?: SheetOptions): RgbaImage;
   frame(options?: FrameOptions): RgbaImage;
   avatar(options?: AvatarOptions): RgbaImage;
@@ -79,17 +88,28 @@ export interface Pixatar {
   sprites(): CharacterDirectionSprites;
 }
 
-/** The character a seed (any text, or a seed code) or a profile stands for. */
-export function pixatar(seedOrProfile: string | CharacterProfile): Pixatar {
-  const profile =
-    typeof seedOrProfile === 'string' ? profileFromSeed(seedOrProfile) : canonicalProfile(seedOrProfile);
-  const seed = seedFromProfile(profile);
+/**
+ * The character a seed (any text, or a seed code) or a profile stands for. `options.background`
+ * overrides what the seed says about the avatar's background (a profile alone says 'color').
+ */
+export function pixatar(seedOrProfile: string | CharacterProfile, options: SeedOptions = {}): Pixatar {
+  const decoded =
+    typeof seedOrProfile === 'string'
+      ? decodeSeed(seedOrProfile)
+      : { profile: canonicalProfile(seedOrProfile), background: 'color' as const };
+  const { profile } = decoded;
+  const avatarBackground = options.background ?? decoded.background;
+  const seed = seedFromProfile(profile, { background: avatarBackground });
   const background = backgroundColor(profile);
-  const avatarOptions = (options: AvatarOptions = {}): AvatarOptions => ({ background, ...options });
+  const avatarOptions = (options: AvatarOptions = {}): AvatarOptions => ({
+    background: avatarBackground === 'transparent' ? null : background,
+    ...options,
+  });
   return {
     seed,
     profile,
     background,
+    avatarBackground,
     sheet: (options) => renderSheet(profile, options),
     frame: (options) => renderFrame(profile, options),
     avatar: (options) => renderAvatar(profile, avatarOptions(options)),

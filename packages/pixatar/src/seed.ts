@@ -1,11 +1,20 @@
 /**
- * Seeds. A seed is either a seed code (`px.` + base64url) or any other text.
+ * Seeds. There are two kinds: a seed code (`px.` + base64url) and free text.
  *
  * A seed code IS a character profile, written compactly: decoding it gives the profile back
  * exactly, and a changed profile gets a changed code (the song-code idea from Pixel Agents'
- * radio: the code is the tune, nothing else is stored). Any other text is hashed into a
- * seeded run of upstream's own randomizer, so the same text always makes the same character
- * (for a given wardrobe: a vendor bump that adds parts may re-deal text seeds, never codes).
+ * radio: the code is the tune, nothing else is stored). It also says whether the avatar sits
+ * on its background colour or on nothing, so a code describes the whole avatar export.
+ *
+ * Free text is any string at all, of any length. Its SHA-256 drives upstream's own
+ * randomizer (in counter mode: every draw is fresh hash output), so the same text always
+ * makes the same character, and changing any one character of it deals a new one from
+ * scratch. A text seed generates a seed code, and is drawn through that code (for a given
+ * wardrobe: a vendor bump that adds parts may re-deal text seeds, never codes).
+ *
+ * The format byte: its low nibble is the format, and TRANSPARENT (0x10) marks a code whose
+ * avatar has a transparent background. Codes made before the flag existed don't have it,
+ * so they keep the coloured background they always had.
  *
  * Code bytes, after the format byte:
  *   1 (compact): profile version, eye flags (eye shape present | eye rows << 1), eye shape,
@@ -23,7 +32,7 @@
 
 import { deflateSync, inflateSync } from 'fflate';
 
-import { fnv1a32, fromBase64Url, fromUtf8, toBase64Url, utf8 } from './bytes.js';
+import { fnv1a32, fromBase64Url, fromUtf8, sha256, toBase64Url, utf8 } from './bytes.js';
 import { canonicalProfile, sameProfile } from './canonical.js';
 import { PixatarError } from './errors.js';
 import { type CharacterColor, type CharacterProfile, EYE_SHAPES, newProfile, randomize, rng, UNDERWEAR } from './vendor.js';
@@ -34,6 +43,22 @@ export const SEED_PREFIX = 'px.';
 
 const COMPACT = 1;
 const PACKED = 2;
+/** Format byte flag: the avatar's background is transparent (absent: its colour). */
+const TRANSPARENT = 0x10;
+
+/** What an avatar is drawn on: its background colour (the default), or nothing. */
+export type AvatarBackground = 'color' | 'transparent';
+
+export interface SeedOptions {
+  /** The avatar's background (default 'color'). The sprite sheet is always transparent. */
+  background?: AvatarBackground;
+}
+
+/** Everything a seed code says: the character, and how its avatar is exported. */
+export interface SeedContents {
+  profile: CharacterProfile;
+  background: AvatarBackground;
+}
 
 /**
  * The compact format's tables. Append-only: a code names entries by their place here, so
@@ -282,32 +307,43 @@ function packed(p: CharacterProfile): Uint8Array {
   return out;
 }
 
-/** The seed code of a profile: the same for every profile that canonicalises alike. */
-export function seedFromProfile(profile: unknown): string {
-  const p = canonicalProfile(profile);
+function profileBytes(p: CharacterProfile): Uint8Array {
   const compact = encodeCompact(p);
   if (compact) {
     try {
-      if (sameProfile(canonicalProfile(decodeCompact(new Reader(compact.subarray(1)))), p)) {
-        return SEED_PREFIX + toBase64Url(compact);
-      }
+      if (sameProfile(canonicalProfile(decodeCompact(new Reader(compact.subarray(1)))), p)) return compact;
     } catch {
       // not representable after all: packed below
     }
   }
-  return SEED_PREFIX + toBase64Url(packed(p));
+  return packed(p);
+}
+
+/**
+ * The seed code of a profile: the same for every profile that canonicalises alike. With the
+ * default (coloured) background it is the code pixatar has always made for that profile.
+ */
+export function seedFromProfile(profile: unknown, options: SeedOptions = {}): string {
+  const background = options.background ?? 'color';
+  if (background !== 'color' && background !== 'transparent') {
+    throw new RangeError(`background must be 'color' or 'transparent', not ${String(background)}`);
+  }
+  const bytes = profileBytes(canonicalProfile(profile));
+  if (background === 'transparent') bytes[0]! |= TRANSPARENT;
+  return SEED_PREFIX + toBase64Url(bytes);
 }
 
 export const isSeedCode = (seed: string): boolean => seed.startsWith(SEED_PREFIX);
 
-/** The profile a seed code holds. Throws a PixatarError when it isn't one. */
-export function profileFromCode(code: string): CharacterProfile {
+/** Everything a seed code holds. Throws a PixatarError when it isn't one. */
+export function decodeSeedCode(code: string): SeedContents {
   const bytes = isSeedCode(code) ? fromBase64Url(code.slice(SEED_PREFIX.length)) : null;
   if (!bytes?.length) throw new PixatarError('invalid-seed', `A seed code is ${SEED_PREFIX} followed by base64url.`);
+  const background: AvatarBackground = bytes[0]! & TRANSPARENT ? 'transparent' : 'color';
   const r = new Reader(bytes.subarray(1));
-  switch (bytes[0]) {
+  switch (bytes[0]! & ~TRANSPARENT) {
     case COMPACT:
-      return canonicalProfile(decodeCompact(r));
+      return { profile: canonicalProfile(decodeCompact(r)), background };
     case PACKED: {
       let json: unknown;
       try {
@@ -315,16 +351,18 @@ export function profileFromCode(code: string): CharacterProfile {
       } catch {
         throw new PixatarError('invalid-seed', 'This seed code is damaged.');
       }
-      return canonicalProfile(json);
+      return { profile: canonicalProfile(json), background };
     }
     default:
       throw new PixatarError('invalid-seed', 'This seed code is in a format this version does not know.');
   }
 }
 
-/** The character upstream's randomizer deals from a 32-bit seed. */
-export function profileFromNumber(seed: number): CharacterProfile {
-  const random = rng(seed);
+/** The profile a seed code holds. Throws a PixatarError when it isn't one. */
+export const profileFromCode = (code: string): CharacterProfile => decodeSeedCode(code).profile;
+
+/** The character upstream's randomizer deals from a stream of numbers in [0, 1). */
+function dealt(random: () => number): CharacterProfile {
   const profile = newProfile();
   // upstream's randomize() draws from Math.random: lend it the seeded stream for the one
   // synchronous call (nothing else can run in between)
@@ -338,18 +376,59 @@ export function profileFromNumber(seed: number): CharacterProfile {
   return canonicalProfile(profile);
 }
 
-/** The character a text seed makes: its FNV-1a hash dealt by upstream's randomizer. */
-export const profileFromText = (text: string): CharacterProfile => profileFromNumber(fnv1a32(text));
+/**
+ * Numbers in [0, 1) from a text's SHA-256, in counter mode: draw i is 32 bits of
+ * SHA-256(SHA-256(text) || i), so every draw depends on every byte of the text.
+ */
+function textStream(text: string): () => number {
+  const key = sha256(text);
+  const input = new Uint8Array(key.length + 4);
+  input.set(key);
+  const counter = new DataView(input.buffer, key.length);
+  let block: Uint8Array = new Uint8Array(0);
+  let at = 0;
+  let n = 0;
+  return () => {
+    if (at === block.length) {
+      counter.setUint32(0, n++);
+      block = sha256(input);
+      at = 0;
+    }
+    const word = ((block[at]! << 24) | (block[at + 1]! << 16) | (block[at + 2]! << 8) | block[at + 3]!) >>> 0;
+    at += 4;
+    return word / 2 ** 32;
+  };
+}
+
+/**
+ * The character a free-text seed makes: any string, of any length (a string starting with
+ * `px.` too: here it is only text). One changed character deals a whole new character.
+ */
+export const profileFromText = (text: string): CharacterProfile => dealt(textStream(text));
+
+/** The seed code a free-text seed generates. */
+export const seedFromText = (text: string, options?: SeedOptions): string =>
+  seedFromProfile(profileFromText(text), options);
+
+/**
+ * What any seed says: a seed code's own contents, or the character text makes (on its
+ * background colour). A string starting with `px.` is read as a code; use seedFromText for
+ * text that happens to.
+ */
+export const decodeSeed = (seed: string): SeedContents =>
+  isSeedCode(seed) ? decodeSeedCode(seed) : { profile: profileFromText(seed), background: 'color' };
 
 /** The profile any seed stands for: a seed code's own, or the one its text makes. */
-export const profileFromSeed = (seed: string): CharacterProfile =>
-  isSeedCode(seed) ? profileFromCode(seed) : profileFromText(seed);
+export const profileFromSeed = (seed: string): CharacterProfile => decodeSeed(seed).profile;
 
-/** Any seed as its seed code (a code comes back as the canonical code of its profile). */
-export const normalizeSeed = (seed: string): string => seedFromProfile(profileFromSeed(seed));
+/** Any seed as its seed code (a code comes back as the canonical code of its contents). */
+export function normalizeSeed(seed: string): string {
+  const { profile, background } = decodeSeed(seed);
+  return seedFromProfile(profile, { background });
+}
 
 /** A new random character's seed code. */
-export function randomSeed(): string {
+export function randomSeed(options?: SeedOptions): string {
   const n = crypto.getRandomValues(new Uint32Array(1))[0]!;
-  return seedFromProfile(profileFromNumber(n));
+  return seedFromProfile(dealt(rng(n)), options);
 }

@@ -26,6 +26,11 @@ canvas.pixelated {
   image-rendering: pixelated;
 }
 
+/* What shows through a transparent avatar. */
+.checkerboard {
+  background: repeating-conic-gradient(#c8c8c8 0 25%, #f0f0f0 0 50%) 0 0 / 16px 16px;
+}
+
 /* Upstream's Characters view mounts over the whole window (position: fixed). A transform
    makes its box the containing block instead, so the view sits in the page. */
 .pixatar-editor {
