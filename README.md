@@ -2,7 +2,8 @@
 
 Deterministic [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents) character avatars, like identicons: a seed always makes the same character, as a sprite sheet and as an avatar on a background colour derived from the seed.
 
-- [`packages/pixatar`](packages/pixatar): the npm package (seed → profile → sprite sheet / avatar). See its [README](packages/pixatar/README.md).
+- [`packages/pixatar`](packages/pixatar): the npm package (seed → profile → sprite sheet / avatar), and its `pixatar` command. See its [README](packages/pixatar/README.md).
+- [`python`](python): the Python client. It makes the same PNGs from Python by running the `pixatar` command (needs Node 22+). See its [README](python/README.md) for requirements, installation and usage.
 - [`apps/web`](apps/web): the web app, deployed to GitHub Pages. Type free text (or paste a seed code) and watch the character animate, then customise it in Pixel Agents' own Characters view. Every change makes a new seed, and the address bar always holds the current one. **Transparent avatar** switches the avatar PNG's background, and the choice is saved in the seed code. The sprite sheet is always transparent.
 
 ### Web app addresses
@@ -20,6 +21,10 @@ npm ci
 npm test          # the package's tests
 npm run dev       # the web app on http://localhost:5173
 npm run build     # the package (packages/pixatar/dist) and the web app (apps/web/dist)
+
+# the Python client's tests, against the built CLI
+pip install './python[test]'
+cd python && PIXATAR_CLI="node $PWD/../packages/pixatar/dist/cli.js" pytest
 ```
 
 The package bakes the pinned wardrobe into `packages/pixatar/src/generated/` (not committed) before every build, test and typecheck.

@@ -57,6 +57,22 @@ seedFromText('octocat', { background: 'transparent' });
 
 It is one bit (`0x10`) in the code's first (format) byte. Codes made before it existed don't have it, so they decode to `'color'` and draw exactly as before, and a coloured code is byte for byte the code pixatar always made. The background colour is hashed from the coloured code, so it doesn't change when the flag does.
 
+## Command line
+
+The package installs a `pixatar` command (Node 22+):
+
+```sh
+pixatar avatar octocat --scale 8 --out octocat.png    # or > octocat.png
+pixatar avatar px.ASMByrHtCcOa… --background transparent --out clear.png
+pixatar sheet octocat --scale 2 --out sheet.png
+pixatar info octocat                                  # seed code, colours and profile, as JSON
+pixatar avatar --text px.hello --out hello.png        # text that starts with px.
+pixatar avatar --out dash.png -- -dash                # a seed that starts with a dash
+pixatar --version
+```
+
+`pixatar serve` keeps one process running for many avatars. It reads one JSON request per line on stdin and writes one JSON response per line on stdout, with the PNG in base64. This is how the [Python client](../../python) uses pixatar. The protocol is documented in [its README](../../python/README.md#the-protocol).
+
 ## API
 
 | | |
