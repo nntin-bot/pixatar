@@ -1,0 +1,6 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+# written by packages/pixatar/scripts/generate-wardrobe.mjs from the pinned vendor art
+packages/pixatar/src/generated/
