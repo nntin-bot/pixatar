@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 import {
   AVATAR_SIZE,
   backgroundColor,
+  FRAME_HEIGHT,
+  FRAME_WIDTH,
   encodePng,
   normalizeSeed,
   pixatar,
@@ -14,6 +16,7 @@ import {
   renderFrame,
   renderSheet,
   type RgbaImage,
+  SHEET_FRAMES,
   SHEET_HEIGHT,
   SHEET_WIDTH,
 } from '../src/index.js';
@@ -23,6 +26,18 @@ const pixel = (image: RgbaImage, x: number, y: number) => {
   const i = (y * image.width + x) * 4;
   return Array.from(image.data.subarray(i, i + 4));
 };
+/** Empty columns left and right of the opaque pixels in rows y0..y1. */
+const margins = (image: RgbaImage, y0 = 0, y1 = image.height - 1) => {
+  let left = image.width;
+  let right = -1;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = 0; x < image.width; x++) {
+      if (pixel(image, x, y)[3]! > 0) [left, right] = [Math.min(left, x), Math.max(right, x)];
+    }
+  }
+  return [left, image.width - 1 - right];
+};
+const SEEDS = Array.from({ length: 40 }, (_, i) => `seed ${i}`);
 const rgb = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 
 describe('the sprite sheet', () => {
@@ -56,6 +71,25 @@ describe('frames', () => {
     const left = renderFrame(p, { direction: 'left', frame: 1 });
     for (let y = 0; y < 32; y++) for (let x = 0; x < 16; x++) expect(pixel(left, x, y)).toEqual(pixel(right, 15 - x, y));
   });
+
+  it('are the whole frame, never cropped to the character, so an animation holds still', () => {
+    // Centring each frame on its own pixels would shift the character every time an arm
+    // swings or the body bobs; every frame is the full 16x32 cell, drawn at the same spot.
+    const p = profileFromText('octocat');
+    for (const direction of ['down', 'up', 'right', 'left'] as const) {
+      for (const frame of Object.values(SHEET_FRAMES).flat()) {
+        const image = renderFrame(p, { direction, frame, scale: 2 });
+        expect([image.width, image.height]).toEqual([FRAME_WIDTH * 2, FRAME_HEIGHT * 2]);
+      }
+    }
+  });
+
+  it('face the viewer centred in the frame', () => {
+    for (const seed of SEEDS) {
+      const [left, right] = margins(renderFrame(profileFromText(seed)));
+      expect(Math.abs(left! - right!)).toBeLessThanOrEqual(1);
+    }
+  });
 });
 
 describe('the avatar', () => {
@@ -70,6 +104,18 @@ describe('the avatar', () => {
     expect(avatar.data.some((v, i) => i % 4 < 3 && v !== rgb(bg)[i % 4])).toBe(true);
     const clear = renderAvatar(p, { background: null });
     expect(pixel(clear, 0, 0)[3]).toBe(0);
+  });
+
+  it('is centred: the frame sits in the middle of the square, 2 columns either side', () => {
+    for (const seed of SEEDS) {
+      const p = profileFromText(seed);
+      const avatar = renderAvatar(p, { background: null });
+      const [left, right] = margins(avatar);
+      // the head's own margins in its frame (the rows the avatar shows), plus 2 either side
+      const [frameLeft, frameRight] = margins(renderFrame(p), 0, AVATAR_SIZE - 1);
+      expect([left, right]).toEqual([frameLeft! + 2, frameRight! + 2]);
+      expect(Math.abs(left! - right!)).toBeLessThanOrEqual(1);
+    }
   });
 });
 
