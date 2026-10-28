@@ -1,0 +1,20 @@
+{
+  "name": "pixatar-monorepo",
+  "private": true,
+  "description": "Deterministic Pixel Agents character avatars: an npm package and a web app",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace packages/pixatar && npm run build --workspace apps/web",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev": "npm run dev --workspace apps/web"
+  }
+}

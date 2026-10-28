@@ -1,0 +1,37 @@
+@import '../../../vendor/pixel-agents/webview-ui/src/index.css';
+
+/* Tailwind's scan stops at the submodule boundary: name upstream's JSX (the Characters view). */
+@source '../../../vendor/pixel-agents/webview-ui/src';
+
+/* Upstream points its font at /fonts/, its own server's root; under GitHub Pages' /<repo>/
+   that is someone else's. The same face again, bundled (the later declaration wins). */
+@font-face {
+  font-family: 'FS Pixel Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../../../vendor/pixel-agents/webview-ui/public/fonts/FSPixelSansUnicode-Regular.ttf') format('truetype');
+}
+
+/* Upstream's app owns all scrolling; this page scrolls like a page. */
+html,
+body,
+#root {
+  height: auto;
+  min-height: 100dvh;
+  overflow: auto;
+}
+
+canvas.pixelated {
+  image-rendering: pixelated;
+}
+
+/* Upstream's Characters view mounts over the whole window (position: fixed). A transform
+   makes its box the containing block instead, so the view sits in the page. */
+.pixatar-editor {
+  transform: translateZ(0);
+}
+/* Embedded, there is nothing behind it to dim, and a click beside it shouldn't close it. */
+.pixatar-editor .chv-backdrop {
+  display: none;
+}

@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the sprite sheet > is pinned for this wardrobe (a vendor bump that redraws it shows here) 1`] = `
+[
+  "373c678bdea4799ef4504abb9e31010f",
+  "b689172d92fd058a09a208c139215c90",
+  "1b1daea76513f96c2e8984199ae3339b",
+]
+`;
