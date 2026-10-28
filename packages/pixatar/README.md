@@ -3,7 +3,7 @@
 Deterministic [Pixel Agents](https://github.com/pixel-agents-hq/pixel-agents) characters. A seed makes a character, the same seed always makes the same character, and pixatar draws it as:
 
 - **a sprite sheet**: Pixel Agents' 128×96 character sheet (rows down, up, right; 8 frames each: walk ×3, type ×2, read ×2, seated)
-- **an avatar**: Pixel Agents' own mug shot (the 20×20 head square of the front-facing sprite) on a **background colour derived from the seed**
+- **an avatar**: Pixel Agents' own mug shot (the 20×20 head square of the front-facing sprite, centred on it) on a **background colour derived from the seed**
 
 The wardrobe, the profile format, the randomizer and the renderer are Pixel Agents' own, bundled from a pinned checkout. When Pixel Agents adds parts (a seasonal theme, say), pixatar picks them up through a vendor bump and a version change.
 

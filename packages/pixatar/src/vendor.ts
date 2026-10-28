@@ -39,7 +39,6 @@ export {
   type Wardrobe,
 } from '../../../vendor/pixel-agents/webview-ui/src/characters/wardrobe.js';
 export {
-  MUGSHOT_CROP_LEFT_COL,
   MUGSHOT_CROP_SIDE_PX,
   MUGSHOT_CROP_TOP_ROW,
   TYPE_FRAME_DURATION_SEC,

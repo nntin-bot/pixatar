@@ -14,7 +14,6 @@ import {
   CHARACTER_DIRECTIONS,
   type CharacterDirectionSprites,
   type CharacterProfile,
-  MUGSHOT_CROP_LEFT_COL,
   MUGSHOT_CROP_SIDE_PX,
   MUGSHOT_CROP_TOP_ROW,
   sheetToDirectionSprites,
@@ -26,6 +25,12 @@ export const SHEET_HEIGHT = CHAR_FRAME_H * CHARACTER_DIRECTIONS.length;
 export const FRAME_WIDTH = CHAR_FRAME_W;
 export const FRAME_HEIGHT = CHAR_FRAME_H;
 export const AVATAR_SIZE = MUGSHOT_CROP_SIDE_PX;
+/**
+ * The avatar's first sprite column: the 16-wide frame centred in the 20-wide square, 2 empty
+ * columns each side. Upstream's MUGSHOT_CROP_LEFT_COL (-1) leaves 1 on the left and 3 on the
+ * right, so its mug shot sits a pixel left of centre.
+ */
+const AVATAR_CROP_LEFT = -(AVATAR_SIZE - FRAME_WIDTH) / 2;
 
 /** The sheet's rows, plus left: the right row mirrored, as the office draws it. */
 export type Direction = 'down' | 'up' | 'right' | 'left';
@@ -114,14 +119,14 @@ function mirror(image: RgbaImage): void {
 }
 
 /**
- * The avatar: Pixel Agents' own mug shot (CharacterMugShot: a 20x20 square over the head of
- * the first front-facing frame), on the character's background colour.
+ * The avatar: Pixel Agents' mug shot (CharacterMugShot: a 20x20 square over the head of the
+ * first front-facing frame), centred across the frame, on the character's background colour.
  */
 export function renderAvatar(profile: CharacterProfile, options: AvatarOptions = {}): RgbaImage {
   const scale = scaleOf(options);
   const background = options.background === undefined ? backgroundColor(profile) : options.background;
   const out = canvas(AVATAR_SIZE * scale, AVATAR_SIZE * scale, background);
-  blit(frameOf(profile, 0, 0), MUGSHOT_CROP_LEFT_COL, MUGSHOT_CROP_TOP_ROW, AVATAR_SIZE, AVATAR_SIZE, out, 0, 0, scale);
+  blit(frameOf(profile, 0, 0), AVATAR_CROP_LEFT, MUGSHOT_CROP_TOP_ROW, AVATAR_SIZE, AVATAR_SIZE, out, 0, 0, scale);
   return out;
 }
 
