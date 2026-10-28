@@ -72,7 +72,7 @@ describe('seed codes', () => {
     expect(profileFromCode(hatted).hat).toBe(hats[0]);
     const recoloured = seedFromProfile({ ...profile, colors: { ...profile.colors, eyes: { h: 120, s: 40, b: -3, c: 7, colorize: true } } });
     expect(recoloured).not.toBe(code);
-    expect(seedFromProfile({ ...profile, hat: undefined })).toBe(code);
+    expect(seedFromProfile({ ...profileFromCode(hatted), hat: profile.hat })).toBe(code);
   });
 
   it('ignore what names a copy rather than describes a look', () => {

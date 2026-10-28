@@ -21,11 +21,17 @@ const SECONDS: Record<Action, number> = {
 };
 const FRAME_SCALE = 4;
 
-/** The avatar, big, on its background colour. */
-export function Avatar({ profile, background, scale = 10 }: { profile: CharacterProfile; background: string; scale?: number }) {
+/** The avatar, big, on its background colour (null: transparent, over a checkerboard). */
+export function Avatar({ profile, background, scale = 10 }: { profile: CharacterProfile; background: string | null; scale?: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => paint(ref.current, renderAvatar(profile, { scale, background })), [profile, background, scale]);
-  return <canvas ref={ref} className="pixelated block border-2 border-border shadow-pixel" aria-label="Avatar" />;
+  return (
+    <canvas
+      ref={ref}
+      className={`pixelated block border-2 border-border shadow-pixel ${background ? '' : 'checkerboard'}`}
+      aria-label="Avatar"
+    />
+  );
 }
 
 /** The character walking (typing, reading) in every direction, with pixatar's own frames. */

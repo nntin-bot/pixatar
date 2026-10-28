@@ -1,5 +1,5 @@
 import { fnv1a32 } from './bytes.js';
-import { normalizeSeed, seedFromProfile } from './seed.js';
+import { profileFromSeed, seedFromProfile } from './seed.js';
 import type { CharacterProfile } from './vendor.js';
 
 const hex2 = (v: number) => Math.round(v * 255).toString(16).padStart(2, '0');
@@ -14,11 +14,11 @@ function hslHex(h: number, s: number, l: number): string {
 /**
  * The background a character's avatar sits on: a soft colour hashed from its seed code, so
  * it is the same wherever the character is drawn and changes whenever the character does.
- * Takes a seed (code or text) or a profile.
+ * Takes a seed (code or text) or a profile. A code's transparent flag doesn't change it: the
+ * colour is hashed from the character's coloured-background code.
  */
 export function backgroundColor(seedOrProfile: string | CharacterProfile): string {
-  const code =
-    typeof seedOrProfile === 'string' ? normalizeSeed(seedOrProfile) : seedFromProfile(seedOrProfile);
+  const code = seedFromProfile(typeof seedOrProfile === 'string' ? profileFromSeed(seedOrProfile) : seedOrProfile);
   const h = fnv1a32(`${code}#background`);
   return hslHex(h % 360, 0.45 + ((h >>> 9) % 20) / 100, 0.72 + ((h >>> 17) % 10) / 100);
 }
