@@ -32,6 +32,17 @@ There are two kinds of seed: **seed codes** (`px.` followed by base64url) and **
 
 `profileFromSeed`, `normalizeSeed` and `pixatar` read a string starting with `px.` as a code and anything else as text. Use `profileFromText` / `seedFromText` for text that happens to start with `px.`.
 
+```js
+pixatar('px.ASMByrHtCcOa…');     // from a seed code
+pixatar('octocat');              // from free text
+seedFromText('octocat');         // 'px.ASMByrHtCcOa…': the code a text seed makes
+pixatar(seedFromText('px.hi'));  // text that starts with px.
+```
+
+There is no `t.` prefix in the package: free text is passed as it is. The web app's `#t.<text>` is only how its address bar holds a text seed (URL-encoded, so it can't be mistaken for `#px.`). Read it back with `decodeURIComponent`, and give the package the text after `t.`. To the package, `t.octocat` is just the text `t.octocat`.
+
+`test/pinned.test.ts` pins a few text seeds and seed codes to their codes, background colours and avatar and sheet PNGs.
+
 ### The avatar background flag
 
 A seed code also says whether the avatar PNG has its background colour (`'color'`, the default) or a transparent background (`'transparent'`):
