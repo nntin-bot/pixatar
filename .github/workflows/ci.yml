@@ -23,3 +23,39 @@ jobs:
       - run: npm run build
       # what `npm publish` would ship, so a packaging slip shows on the PR
       - run: npm pack --dry-run --workspace packages/pixatar
+
+  # the Python client (python/) against the real CLI, both ways a Python project finds it
+  python:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # the oldest Python the client supports, and the newest
+        python-version: ['3.10', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: npm ci
+      - run: npm run build --workspace packages/pixatar
+      # installed, not run from the checkout, so a packaging slip fails here too
+      - run: pip install './python[test]'
+      - name: pytest, with the CLI named by PIXATAR_CLI
+        working-directory: python
+        run: pytest
+        env:
+          PIXATAR_CLI: node ${{ github.workspace }}/packages/pixatar/dist/cli.js
+      - name: install the CLI from the npm tarball onto the PATH
+        run: |
+          npm pack --workspace packages/pixatar --pack-destination "$RUNNER_TEMP"
+          npm install --global "$RUNNER_TEMP"/pixatar-*.tgz
+          command -v pixatar
+      - name: pytest, with the CLI found on the PATH
+        working-directory: python
+        run: pytest
